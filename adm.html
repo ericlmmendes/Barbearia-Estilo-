@@ -1,0 +1,218 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barbearia Estilo - Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      margin: 0;
+    }
+    main {
+      flex: 1 0 auto;
+    }
+    footer {
+      flex-shrink: 0;
+    }
+    .logo {
+      width: 80px;
+      height: 80px;
+      margin-left: auto;
+      margin-right: auto;
+      display: block;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans">
+  <main>
+    <header class="bg-gray-900 text-white">
+      <div class="container mx-auto p-4 flex justify-between items-center">
+        <h1 class="text-2xl font-bold">Barbearia Estilo - Admin</h1>
+        <nav id="header-nav">
+          <a href="index.html" class="px-4 text-white hover:text-amber-400">Home</a>
+        </nav>
+      </div>
+    </header>
+
+    <section id="login" class="py-12 bg-gray-100">
+      <div class="container mx-auto text-center">
+        <img src="./img/logo.jpg" alt="Logo" class="logo">
+        <h2 class="text-2xl font-bold mb-8 text-gray-900">Acesso Administrativo</h2>
+        <form id="login-form" class="max-w-lg mx-auto bg-white p-6 rounded-lg shadow-md">
+          <div class="mb-4">
+            <label for="admin-username" class="block text-sm font-medium text-gray-700">Login</label>
+            <input type="text" id="admin-username" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-amber-500 focus:border-amber-500" required>
+          </div>
+          <div class="mb-4">
+            <label for="admin-password" class="block text-sm font-medium text-gray-700">Senha</label>
+            <input type="password" id="admin-password" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-amber-500 focus:border-amber-500" required>
+          </div>
+          <div class="flex justify-between">
+            <button type="submit" class="bg-amber-500 text-black px-4 py-2 rounded-md hover:bg-amber-600">Entrar</button>
+            <button type="button" id="cancel-login" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section id="bookings" class="py-12 hidden">
+      <div class="container mx-auto">
+        <h2 class="text-2xl font-bold text-center mb-8 text-gray-900">Área do Administrador</h2>
+        <div class="flex justify-end mb-4">
+          <a href="#" id="logout" class="px-4 text-white bg-gray-600 rounded-md hover:bg-gray-700">Sair</a>
+          <a href="relatorio.html" class="px-4 bg-amber-500 rounded-md hover:bg-amber-600 text-black ml-2">Relatório</a>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+          <h3 class="text-xl font-semibold mb-4 text-gray-900">Agendamentos Pendentes</h3>
+          <div id="booking-list" class="space-y-4">
+            <!-- Agendamentos serão inseridos aqui -->
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-black text-white py-6">
+    <div class="container mx-auto text-center">
+      <p>© 2025 Barbearia Estilo Masculino. Todos os direitos reservados.</p>
+      <p>Rua Exemplo, 123, São Paulo, SP | (11) 99999-9999</p>
+    </div>
+  </footer>
+
+  <script>
+    if (localStorage.getItem('isLoggedIn') === 'true') {
+      document.getElementById('login').classList.add('hidden');
+      document.getElementById('bookings').classList.remove('hidden');
+      loadBookings();
+    }
+
+    document.getElementById('login-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const username = document.getElementById('admin-username').value;
+      const password = document.getElementById('admin-password').value;
+      if (username === 'corte2025' && password === '123456') {
+        localStorage.setItem('isLoggedIn', 'true');
+        document.getElementById('login').classList.add('hidden');
+        document.getElementById('bookings').classList.remove('hidden');
+        loadBookings();
+      } else {
+        alert('Login ou senha incorretos!');
+      }
+    });
+
+    document.getElementById('cancel-login').addEventListener('click', function() {
+      document.getElementById('login-form').reset();
+    });
+
+    document.querySelectorAll('#logout, #logout-nav').forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        localStorage.removeItem('isLoggedIn');
+        document.getElementById('login').classList.remove('hidden');
+        document.getElementById('bookings').classList.add('hidden');
+        document.getElementById('login-form').reset();
+      });
+    });
+
+    function loadBookings() {
+      const bookingList = document.getElementById('booking-list');
+      bookingList.innerHTML = '';
+      const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+      const pendingBookings = bookings.filter(booking => booking.confirmation !== 'Corte finalizado');
+      if (pendingBookings.length === 0) {
+        bookingList.innerHTML = '<p>Nenhum agendamento pendente.</p>';
+        return;
+      }
+      pendingBookings.forEach((booking, index) => {
+        const bookingDiv = document.createElement('div');
+        bookingDiv.className = 'border-b py-2';
+        const message = `Nome: ${booking.name}\nTelefone: ${booking.phone}\nServiço: ${booking.service}\nData: ${booking.date}\nHorário: ${booking.time}`;
+        const whatsappUrl = `https://wa.me/55${booking.phone}?text=${encodeURIComponent(message)}`;
+        bookingDiv.innerHTML = `
+          <p><strong>Nome:</strong> ${booking.name}</p>
+          <p><strong>Telefone:</strong> ${booking.phone}</p>
+          <p><strong>Serviço:</strong> ${booking.service}</p>
+          <p><strong>Data:</strong> ${booking.date}</p>
+          <p><strong>Horário:</strong> ${booking.time}</p>
+          <p><strong>Confirmação:</strong> ${booking.confirmation || 'Não confirmado'}</p>
+          <div class="flex space-x-2">
+            <button class="bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700" onclick="deleteBooking(${index})">Excluir</button>
+            <button class="bg-green-700 text-white px-2 py-1 rounded-md hover:bg-green-800" onclick="finalizeBooking(${index})">Finalizar Corte</button>
+            <a href="${whatsappUrl}" target="_blank" class="bg-green-700 text-white px-2 py-1 rounded-md hover:bg-green-800" onclick="confirmBooking(${index})">Confirmar via WhatsApp</a>
+          </div>
+        `;
+        bookingList.appendChild(bookingDiv);
+      });
+    }
+
+    function deleteBooking(index) {
+      let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+      bookings.splice(index, 1);
+      localStorage.setItem('bookings', JSON.stringify(bookings));
+      loadBookings();
+    }
+
+    function finalizeBooking(index) {
+      let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+      const finalizedBooking = bookings[index];
+      finalizedBooking.confirmation = 'Corte finalizado';
+      bookings.splice(index, 1);
+      bookings.push(finalizedBooking);
+      localStorage.setItem('bookings', JSON.stringify(bookings));
+      loadBookings();
+      alert('Corte finalizado com sucesso!');
+    }
+
+    function confirmBooking(index) {
+      let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+      bookings[index].confirmation = 'Confirmado';
+      localStorage.setItem('bookings', JSON.stringify(bookings));
+      loadBookings();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,154 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relatório - Barbearia Estilo</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      margin: 0;
+    }
+    main {
+      flex: 1 0 auto;
+    }
+    footer {
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans">
+  <main>
+    <header class="bg-gray-900 text-white">
+      <div class="container mx-auto p-4 flex justify-between items-center">
+        <h1 class="text-2xl font-bold">Barbearia Estilo - Relatório</h1>
+        <nav>
+          <a href="index.html" class="px-4 text-white hover:text-amber-400">Home</a>
+          <a href="adm.html" class="px-4 text-white hover:text-amber-400">Admin</a>
+        </nav>
+      </div>
+    </header>
+
+    <section id="report" class="py-12">
+      <div class="container mx-auto">
+        <h2 class="text-2xl font-bold text-center mb-8 text-gray-900">Relatório de Agendamentos</h2>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+          <h3 class="text-xl font-semibold mb-4 text-gray-900">Resumo Financeiro</h3>
+          <div id="booking-list" class="space-y-4"></div>
+          <div class="mt-4">
+            <p class="text-lg font-bold text-gray-900">Total: <span id="total-amount">R$ 0,00</span></p>
+          </div>
+          <div class="mt-4">
+            <button class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700" onclick="clearReport()">Limpar Tudo</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-black text-white py-6">
+    <div class="container mx-auto text-center">
+      <p>© 2025 Barbearia Estilo Masculino. Todos os direitos reservados.</p>
+      <p>Rua Exemplo, 123, São Paulo, SP | (11) 99999-9999</p>
+    </div>
+  </footer>
+
+  <script>
+    if (localStorage.getItem('isLoggedIn') !== 'true') {
+      window.location.href = 'adm.html';
+    }
+
+    function loadReport() {
+      const bookingList = document.getElementById('booking-list');
+      const totalAmount = document.getElementById('total-amount');
+      bookingList.innerHTML = '';
+      const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+      const finalizedBookings = bookings.filter(booking => booking.confirmation === 'Corte finalizado');
+
+      if (finalizedBookings.length === 0) {
+        bookingList.innerHTML = '<p>Nenhum agendamento finalizado.</p>';
+        totalAmount.textContent = 'R$ 0,00';
+        return;
+      }
+
+      let total = 0;
+      const priceMap = {
+        'Corte Clássico - R$ 40,00': 40,
+        'Barba Completa - R$ 30,00': 30,
+        'Combo Corte + Barba - R$ 65,00': 65
+      };
+
+      finalizedBookings.forEach(booking => {
+        const bookingDiv = document.createElement('div');
+        bookingDiv.className = 'border-b py-2';
+        bookingDiv.innerHTML = `
+          <p><strong>Serviço:</strong> ${booking.service}</p>
+          <p><strong>Data:</strong> ${booking.date}</p>
+          <p><strong>Horário:</strong> ${booking.time}</p>
+          <p><strong>Confirmação:</strong> ${booking.confirmation}</p>
+        `;
+        bookingList.appendChild(bookingDiv);
+        total += priceMap[booking.service] || 0;
+      });
+
+      totalAmount.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
+    }
+
+    function clearReport() {
+      const currentDate = '2025-07-09'; // Data atual fornecida
+      let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+      bookings = bookings.filter(booking => {
+        // Mantém agendamentos que não são "Corte finalizado" ou que são de dias futuros
+        return booking.confirmation !== 'Corte finalizado' || booking.date > currentDate;
+      });
+      localStorage.setItem('bookings', JSON.stringify(bookings));
+      loadReport();
+      alert('Agendamentos finalizados do dia atual foram limpos com sucesso!');
+    }
+
+    window.onload = loadReport;
+  </script>
+</body>
+</html>
